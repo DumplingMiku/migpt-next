@@ -3,10 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node app.js"
+    "start": "node app.js",
+    "docker:build": "docker build -t mi-gpt:latest ."
   },
   "dependencies": {
-    "@mi-gpt/next": "^1.3.2"
+    "@mi-gpt/next": "workspace:*"
   },
   "engines": {
     "node": ">=16"

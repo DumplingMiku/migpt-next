@@ -24,7 +24,8 @@
     "@mi-gpt/chat": "workspace:*",
     "@mi-gpt/engine": "workspace:*",
     "@mi-gpt/utils": "workspace:*",
-    "@mi-gpt/miot": "workspace:*"
+    "@mi-gpt/miot": "workspace:*",
+    "@mi-gpt/openai": "workspace:*"
   },
   "devDependencies": {
     "@mi-gpt/config": "workspace:*",

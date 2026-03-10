@@ -49,6 +49,28 @@ export default {
      * 模型名称
      */
     model: 'gpt-4.1-mini',
+    /**
+     * (可选) 自定义请求头
+     */
+    // defaultHeaders: {
+    //   'User-Agent': 'OpenAI/JS 4.98.0',
+    // },
+  },
+  /**
+   * (可选) MCP Agent Skills
+   *
+   * 开启后 AI 将具备调用外部工具的能力（如：查天气、控制设备、搜索网页等）
+   */
+  mcp: {
+    enable: false, // 是否开启 MCP 技能
+    servers: [
+      {
+        name: 'weather-skill',
+        type: 'stdio',
+        command: 'node',
+        args: ['../mcp/weather.js'], // 您剛才建立的天氣技能
+      },
+    ],
   },
   prompt: {
     /**

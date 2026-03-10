@@ -1,16 +1,30 @@
 import { ChatBot, type IMessage } from '@mi-gpt/chat';
 import type { IReply } from '@mi-gpt/engine/base';
 import { type EngineConfig, MiGPTEngine } from '@mi-gpt/engine/index';
+import { OpenAI } from '@mi-gpt/openai';
 import { deepMerge, sleep } from '@mi-gpt/utils';
 import type { DeepPartial, Prettify } from '@mi-gpt/utils/typing';
 import { MiMessage } from './message.js';
 import { MiService, type MiServiceConfig } from './service.js';
 import { MiSpeaker } from './speaker.js';
+import { MCPManager } from './mcp.js';
+
+export interface MCPServerConfig {
+  name: string;
+  type: 'stdio' | 'sse';
+  command?: string;
+  args?: string[];
+  url?: string;
+}
 
 export type MiGPTConfig = Prettify<
   EngineConfig<MiJiaEngine> &
     DeepPartial<{
       debug: boolean;
+      mcp?: {
+        enable: boolean;
+        servers: MCPServerConfig[];
+      };
       speaker: MiServiceConfig & {
         /**
          * 消息轮询间隔（毫秒）
@@ -33,6 +47,7 @@ class MiJiaEngine extends MiGPTEngine {
   config: MiGPTConfig = kDefaultMiGPTConfig;
 
   speaker = MiSpeaker;
+  mcp?: MCPManager;
 
   get MiNA() {
     return MiService.MiNA!;
@@ -44,6 +59,11 @@ class MiJiaEngine extends MiGPTEngine {
 
   async start(config: MiGPTConfig) {
     await super.start(deepMerge(kDefaultMiGPTConfig, config));
+
+    if (this.config.mcp?.enable && this.config.mcp.servers?.length) {
+      this.mcp = new MCPManager(this.config.mcp.servers as any);
+      await this.mcp.init();
+    }
 
     await MiService.init(this.config as any);
 
@@ -63,8 +83,52 @@ class MiJiaEngine extends MiGPTEngine {
   }
 
   async askAI(msg: IMessage): Promise<IReply> {
-    const text = await ChatBot.chat(msg);
-    return { text };
+    const tools = this.mcp?.getOpenAITools();
+    const messages = (ChatBot as any)._getMessages(msg);
+
+    let retry = 5;
+    while (retry--) {
+      const { text, toolCalls } = await OpenAI.chat({
+        requestId: msg.id,
+        createParams: {
+          messages,
+          tools: tools?.length ? tools : undefined,
+          stream: false,
+        },
+      });
+
+      if (!toolCalls?.length) {
+        return { text };
+      }
+
+      // 处理 Tool Calls
+      messages.push({
+        role: 'assistant',
+        content: text || null,
+        tool_calls: toolCalls,
+      });
+
+      for (const call of toolCalls) {
+        console.log(`🛠️ 正在执行工具: ${call.function.name}...`);
+        try {
+          const args = JSON.parse(call.function.arguments);
+          const result = await this.mcp!.callTool(call.function.name, args);
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: typeof result === 'string' ? result : JSON.stringify(result),
+          });
+        } catch (e: any) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: `Error: ${e.message}`,
+          });
+        }
+      }
+    }
+
+    return { text: '抱歉，处理工具调用超时。' };
   }
 }
 

@@ -34,6 +34,12 @@ export type OpenAIConfig = DeepPartial<{
    */
   model: string;
   /**
+   * 自定义请求头
+   *
+   * 示例：{ "User-Agent": "OpenAI/JS 4.98.0" }
+   */
+  defaultHeaders: Record<string, string>;
+  /**
    * 扩展配置
    */
   extra: {
@@ -48,6 +54,9 @@ export const kDefaultOpenAIConfig: OpenAIConfig = {
   baseURL: 'https://api.openai.com/v1',
   model: 'gpt-4o-mini',
   apiKey: 'sk-1234567890',
+  defaultHeaders: {
+    'User-Agent': 'OpenAI/JS 4.98.0',
+  },
   extra: {
     clientOptions: {},
     createParams: {},

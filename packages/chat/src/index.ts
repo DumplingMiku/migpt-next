@@ -29,7 +29,7 @@ export class _ChatBot {
   }
 
   async chat(msg: IMessage) {
-    const answer = await OpenAI.chat({
+    const { text } = await OpenAI.chat({
       requestId: msg.id,
       createParams: {
         messages: this._getMessages(msg),
@@ -37,16 +37,16 @@ export class _ChatBot {
       },
     });
 
-    if (answer) {
+    if (text) {
       this._addMessage({
         id: randomUUID(),
-        text: answer,
+        text: text,
         timestamp: Date.now(),
         sender: 'assistant',
       });
     }
 
-    return answer;
+    return text;
   }
 
   /**
@@ -71,12 +71,12 @@ export class _ChatBot {
         stream.cancel();
         await onError?.(error);
       },
-    }).then((answer) => {
-      if (answer) {
+    }).then(({ text }) => {
+      if (text) {
         stream.flush();
         this._addMessage({
           id: randomUUID(),
-          text: answer,
+          text: text,
           timestamp: Date.now(),
           sender: 'assistant',
         });

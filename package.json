@@ -4,7 +4,8 @@
   "scripts": {
     "build": "turbo run build",
     "postinstall": "[ -n \"$CI\" ] || lefthook install",
-    "publish-packages": "changeset version && turbo run build && changeset publish && git push --follow-tags"
+    "publish-packages": "changeset version && turbo run build && changeset publish && git push --follow-tags",
+    "docker:build": "docker build -t mi-gpt:latest ./apps/example"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

@@ -32,8 +32,23 @@ dist
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Local config
+apps/example/config-test.js
+
+# IDE
+.vscode/
+.idea/
+
+# MCP
+apps/mcp/node_modules/
 
 # Misc
 .DS_Store
 *.pem
 .mi.json
+
+# Gemini
+GEMINI.md
