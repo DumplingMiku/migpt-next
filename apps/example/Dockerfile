@@ -1,18 +1,25 @@
-FROM node:22-alpine AS env-amd64
-FROM node:22-alpine AS env-arm64
-FROM node:18-alpine AS env-arm
+FROM node:22-alpine AS base
 
-FROM env-$TARGETARCH AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
-ARG TARGETARCH
+FROM base AS build
+WORKDIR /app
+COPY . .
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm run build
 
 FROM base AS runtime
-
 WORKDIR /app
 
-COPY . .
+# 只從 build 階段複製必要檔案
+COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY --from=build /app/apps/example ./apps/example
+COPY --from=build /app/packages ./packages
 
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev
+# 安裝正式環境依賴
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile --filter "@mi-gpt/example..."
 
+WORKDIR /app/apps/example
 CMD ["node", "app.js"]
