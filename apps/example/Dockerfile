@@ -19,7 +19,7 @@ COPY --from=build /app/apps/example ./apps/example
 COPY --from=build /app/packages ./packages
 
 # 安裝正式環境依賴
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile --filter "@mi-gpt/example..."
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store CI=true pnpm install --prod --frozen-lockfile --filter "@mi-gpt/example..."
 
 WORKDIR /app/apps/example
 CMD ["node", "app.js"]
