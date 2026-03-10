@@ -17,6 +17,7 @@ WORKDIR /app
 COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=build /app/apps/example ./apps/example
 COPY --from=build /app/apps/next ./apps/next
+COPY --from=build /app/apps/mcp ./apps/mcp
 COPY --from=build /app/packages ./packages
 
 # 安裝正式環境依賴

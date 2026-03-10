@@ -91,7 +91,17 @@ export default {
 修改好 `config.js` 配置文件之后，Docker 一键运行。
 
 ```shell
-docker run -it --rm -v $(pwd)/config.js:/app/config.js ghcr.io/dumplingmiku/migpt-next:latest
+docker run -it --rm -v $(pwd)/config.js:/app/apps/config.js ghcr.io/dumplingmiku/migpt-next:latest
+```
+
+```compose
+services:
+    migpt:
+        container_name: migpt
+        network_mode: bridge
+        volumes:
+            - ./config.js:/app/apps/config.js:ro
+        image: ghcr.io/dumplingmiku/migpt-next:main
 ```
 
 ## Node.js 运行
