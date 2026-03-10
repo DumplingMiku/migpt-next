@@ -20,8 +20,10 @@ COPY --from=build /app/apps/next ./apps/next
 COPY --from=build /app/apps/mcp ./apps/mcp
 COPY --from=build /app/packages ./packages
 
-# 安裝正式環境依賴
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store CI=true pnpm install --prod --frozen-lockfile --filter "@mi-gpt/example..."
+# 安裝正式環境依賴（含 mcp-weather）
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store CI=true pnpm install --prod --frozen-lockfile \
+  --filter "@mi-gpt/example..." \
+  --filter "mcp-weather"
 
 WORKDIR /app/apps/example
 CMD ["node", "app.js"]
