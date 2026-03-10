@@ -145,12 +145,12 @@ jobs:
           fi
 
           SHOULD_PUSH="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.push || 'true' }}"
-          PUSH_FLAG=""
-          if [[ "$SHOULD_PUSH" == "true" ]]; then
-            PUSH_FLAG="--push"
+          DRY_RUN_FLAG=""
+          if [[ "$SHOULD_PUSH" != "true" ]]; then
+            DRY_RUN_FLAG="--dry-run"
           fi
 
-          docker buildx imagetools create $PUSH_FLAG $TAGS $DIGESTS
+          docker buildx imagetools create $DRY_RUN_FLAG $TAGS $DIGESTS
 
       - name: Inspect image
         run: |
