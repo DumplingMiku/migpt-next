@@ -34,6 +34,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 *.log
+test-weather.js
 
 # Local config
 apps/example/config-test.js

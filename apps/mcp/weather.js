@@ -10,21 +10,24 @@ const server = new Server(
 /**
  * 獲取天氣與預報的函數 (使用 open-meteo.com)
  */
-async function fetchWeather(city, days = 1) {
+async function fetchWeather(city, daysInput = 1) {
+  const days = Math.max(1, Math.min(14, Number.parseInt(daysInput) || 1));
   try {
     // 1. 使用 Geocoding API 將城市名稱轉換為經緯度
     const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh`;
     const geoRes = await fetch(geoUrl);
+    if (!geoRes.ok) throw new Error(`Geocoding API 請求失敗: ${geoRes.status}`);
     const geoData = await geoRes.json();
 
     if (!geoData.results || geoData.results.length === 0) {
+      console.error(`[Weather Tool] 找不到城市: ${city}`);
       return `找不到城市：${city}`;
     }
 
     const { latitude, longitude, name, admin1, country } = geoData.results[0];
     const locationName = `${name}${admin1 ? `, ${admin1}` : ''}${country ? ` (${country})` : ''}`;
 
-    // 2. 使用 Forecast API 獲取天氣資訊 (包含當前與每日預報)
+    // 2. 使用 Forecast API 獲取天氣資訊
     const params = [
       `latitude=${latitude}`,
       `longitude=${longitude}`,
@@ -36,10 +39,11 @@ async function fetchWeather(city, days = 1) {
 
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?${params}`;
     const weatherRes = await fetch(weatherUrl);
+    if (!weatherRes.ok) throw new Error(`Forecast API 請求失敗: ${weatherRes.status}`);
     const weatherData = await weatherRes.json();
 
     if (!weatherData.current || !weatherData.daily) {
-      throw new Error('無法獲取天氣數據');
+      throw new Error('API 回傳數據格式不正確');
     }
 
     // 當前天氣
