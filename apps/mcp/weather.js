@@ -1,10 +1,11 @@
 import dns from 'node:dns';
+import http from 'node:http';
 import https from 'node:https';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-// 強制優先使用 IPv4，解決部分 Docker 環境 IPv6 導致的 ETIMEDOUT 問題
+// 強制優先使用 IPv4
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
 }
@@ -15,18 +16,25 @@ const server = new Server(
 );
 
 /**
- * 使用 https 模組的請求封裝 (比 fetch 更穩定，更接近 curl 行為)
+ * 使用 http/https 模組的請求封裝
+ * 優先嘗試 http 以避開 TLS 握手超時問題
  */
 function request(url) {
   return new Promise((resolve, reject) => {
+    const isHttps = url.startsWith('https');
+    const client = isHttps ? https : http;
+
     const options = {
-      timeout: 20000,
+      timeout: 15000,
+      family: 4, // 強制只使用 IPv4
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'curl/8.17.0', // 模擬 curl 的 User-Agent
+        Accept: '*/*',
         Connection: 'close',
       },
     };
-    const req = https.get(url, options, (res) => {
+
+    const req = client.get(url, options, (res) => {
       let data = '';
       res.on('data', (chunk) => {
         data += chunk;
@@ -39,14 +47,18 @@ function request(url) {
             resolve(data);
           }
         } else {
-          reject(new Error(`請求失敗，狀態碼: ${res.statusCode}`));
+          reject(new Error(`HTTP ${res.statusCode}`));
         }
       });
     });
-    req.on('error', (err) => reject(err));
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('請求逾時 (20s)'));
+      reject(new Error('Request Timeout (15s)'));
     });
   });
 }
@@ -57,11 +69,13 @@ function request(url) {
 async function fetchWithRetry(url, retries = 3, backoff = 1000) {
   for (let i = 0; i < retries; i++) {
     try {
-      console.error(`[Weather Tool] 正在請求: ${url}`);
-      return await request(url);
+      // 在 Docker/ARM 環境下，如果 HTTPS 持續超時，嘗試改用 HTTP
+      const targetUrl = url.replace('https://', 'http://');
+      console.error(`[Weather Tool] 請求 (${i + 1}/${retries}): ${targetUrl}`);
+      return await request(targetUrl);
     } catch (err) {
       const isLastRetry = i === retries - 1;
-      console.error(`[Weather Tool] 請求失敗 (第 ${i + 1} 次嘗試): ${err.message}`);
+      console.error(`[Weather Tool] 失敗: ${err.message}`);
       if (isLastRetry) throw err;
       await new Promise((resolve) => setTimeout(resolve, backoff * (i + 1)));
     }
@@ -76,8 +90,8 @@ async function fetchWeather(city, daysInput = 1) {
   try {
     console.error(`[Weather Tool] 開始查詢: ${city}, 天數: ${days}`);
 
-    // 1. 使用 Geocoding API 將城市名稱轉換為經緯度
-    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh`;
+    // 1. 使用 Geocoding API
+    const geoUrl = `http://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh`;
     const geoData = await fetchWithRetry(geoUrl);
 
     if (!geoData.results || geoData.results.length === 0) {
@@ -89,7 +103,7 @@ async function fetchWeather(city, daysInput = 1) {
     const locationName = `${name}${admin1 ? `, ${admin1}` : ''}${country ? ` (${country})` : ''}`;
     console.error(`[Weather Tool] 解析到位置: ${locationName} (${latitude}, ${longitude})`);
 
-    // 2. 使用 Forecast API 獲取天氣資訊
+    // 2. 使用 Forecast API
     const params = [
       `latitude=${latitude}`,
       `longitude=${longitude}`,
@@ -99,7 +113,7 @@ async function fetchWeather(city, daysInput = 1) {
       'timezone=auto',
     ].join('&');
 
-    const weatherUrl = `https://api.open-meteo.com/v1/forecast?${params}`;
+    const weatherUrl = `http://api.open-meteo.com/v1/forecast?${params}`;
     const weatherData = await fetchWithRetry(weatherUrl);
     console.error('[Weather Tool] 天氣數據獲取成功');
 
