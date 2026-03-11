@@ -22,7 +22,16 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 1000) {
     try {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeout);
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Connection: 'close',
+          ...options.headers,
+        },
+      });
       clearTimeout(id);
       return response;
     } catch (err) {
