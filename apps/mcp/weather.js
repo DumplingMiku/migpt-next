@@ -96,6 +96,7 @@ async function fetchWeather(city, daysInput = 1) {
 
     return report;
   } catch (e) {
+    console.error(`[Weather Tool] 執行出錯: ${e.message}`, e);
     return `無法獲取 ${city} 的天氣資訊：${e.message}`;
   }
 }
