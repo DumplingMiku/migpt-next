@@ -13,19 +13,28 @@ const server = new Server(
 async function fetchWeather(city, daysInput = 1) {
   const days = Math.max(1, Math.min(14, Number.parseInt(daysInput) || 1));
   try {
+    console.error(`[Weather Tool] 開始查詢: ${city}, 天數: ${days}`);
+
     // 1. 使用 Geocoding API 將城市名稱轉換為經緯度
     const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh`;
+    console.error(`[Weather Tool] 請求 Geocoding: ${geoUrl}`);
+
     const geoRes = await fetch(geoUrl);
-    if (!geoRes.ok) throw new Error(`Geocoding API 請求失敗: ${geoRes.status}`);
+    if (!geoRes.ok) {
+      const errorText = await geoRes.text();
+      console.error(`[Weather Tool] Geocoding 失敗: ${geoRes.status}, ${errorText}`);
+      throw new Error(`Geocoding API 請求失敗: ${geoRes.status}`);
+    }
     const geoData = await geoRes.json();
 
     if (!geoData.results || geoData.results.length === 0) {
-      console.error(`[Weather Tool] 找不到城市: ${city}`);
+      console.error(`[Weather Tool] 找不到城市結果: ${city}`);
       return `找不到城市：${city}`;
     }
 
     const { latitude, longitude, name, admin1, country } = geoData.results[0];
     const locationName = `${name}${admin1 ? `, ${admin1}` : ''}${country ? ` (${country})` : ''}`;
+    console.error(`[Weather Tool] 解析到位置: ${locationName} (${latitude}, ${longitude})`);
 
     // 2. 使用 Forecast API 獲取天氣資訊
     const params = [
@@ -38,9 +47,16 @@ async function fetchWeather(city, daysInput = 1) {
     ].join('&');
 
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?${params}`;
+    console.error(`[Weather Tool] 請求 Forecast: ${weatherUrl}`);
+
     const weatherRes = await fetch(weatherUrl);
-    if (!weatherRes.ok) throw new Error(`Forecast API 請求失敗: ${weatherRes.status}`);
+    if (!weatherRes.ok) {
+      const errorText = await weatherRes.text();
+      console.error(`[Weather Tool] Forecast 失敗: ${weatherRes.status}, ${errorText}`);
+      throw new Error(`Forecast API 請求失敗: ${weatherRes.status}`);
+    }
     const weatherData = await weatherRes.json();
+    console.error('[Weather Tool] 天氣數據獲取成功');
 
     if (!weatherData.current || !weatherData.daily) {
       throw new Error('API 回傳數據格式不正確');
