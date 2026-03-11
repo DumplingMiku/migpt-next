@@ -1,6 +1,12 @@
+import dns from 'node:dns';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+
+// 強制優先使用 IPv4，解決部分 Docker 環境 IPv6 導致的 ETIMEDOUT 問題
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 const server = new Server(
   { name: 'weather-tool', version: '1.0.0' },
@@ -11,7 +17,7 @@ const server = new Server(
  * 帶有重試機制的 fetch 封裝
  */
 async function fetchWithRetry(url, options = {}, retries = 3, backoff = 1000) {
-  const timeout = options.timeout || 10000;
+  const timeout = options.timeout || 20000; // 延長至 20 秒
   for (let i = 0; i < retries; i++) {
     try {
       const controller = new AbortController();
