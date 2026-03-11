@@ -1,4 +1,5 @@
 import dns from 'node:dns';
+import https from 'node:https';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -14,26 +15,50 @@ const server = new Server(
 );
 
 /**
- * 帶有重試機制的 fetch 封裝
+ * 使用 https 模組的請求封裝 (比 fetch 更穩定，更接近 curl 行為)
  */
-async function fetchWithRetry(url, options = {}, retries = 3, backoff = 1000) {
-  const timeout = options.timeout || 20000; // 延長至 20 秒
+function request(url) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      timeout: 20000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        Connection: 'close',
+      },
+    };
+    const req = https.get(url, options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            resolve(JSON.parse(data));
+          } catch (_e) {
+            resolve(data);
+          }
+        } else {
+          reject(new Error(`請求失敗，狀態碼: ${res.statusCode}`));
+        }
+      });
+    });
+    req.on('error', (err) => reject(err));
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('請求逾時 (20s)'));
+    });
+  });
+}
+
+/**
+ * 帶有重試機制的請求封裝
+ */
+async function fetchWithRetry(url, retries = 3, backoff = 1000) {
   for (let i = 0; i < retries; i++) {
     try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeout);
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Connection: 'close',
-          ...options.headers,
-        },
-      });
-      clearTimeout(id);
-      return response;
+      console.error(`[Weather Tool] 正在請求: ${url}`);
+      return await request(url);
     } catch (err) {
       const isLastRetry = i === retries - 1;
       console.error(`[Weather Tool] 請求失敗 (第 ${i + 1} 次嘗試): ${err.message}`);
@@ -44,24 +69,16 @@ async function fetchWithRetry(url, options = {}, retries = 3, backoff = 1000) {
 }
 
 /**
- * 獲取天氣與預報的函數 (使用 open-meteo.com)
+ * 獲取天氣與預報的函數
  */
 async function fetchWeather(city, daysInput = 1) {
   const days = Math.max(1, Math.min(14, Number.parseInt(daysInput) || 1));
   try {
     console.error(`[Weather Tool] 開始查詢: ${city}, 天數: ${days}`);
 
-    // 1. 使用 Geocoding API
+    // 1. 使用 Geocoding API 將城市名稱轉換為經緯度
     const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh`;
-    console.error(`[Weather Tool] 請求 Geocoding: ${geoUrl}`);
-
-    const geoRes = await fetchWithRetry(geoUrl);
-    if (!geoRes.ok) {
-      const errorText = await geoRes.text();
-      console.error(`[Weather Tool] Geocoding 失敗: ${geoRes.status}, ${errorText}`);
-      throw new Error(`Geocoding API 請求失敗: ${geoRes.status}`);
-    }
-    const geoData = await geoRes.json();
+    const geoData = await fetchWithRetry(geoUrl);
 
     if (!geoData.results || geoData.results.length === 0) {
       console.error(`[Weather Tool] 找不到城市結果: ${city}`);
@@ -72,7 +89,7 @@ async function fetchWeather(city, daysInput = 1) {
     const locationName = `${name}${admin1 ? `, ${admin1}` : ''}${country ? ` (${country})` : ''}`;
     console.error(`[Weather Tool] 解析到位置: ${locationName} (${latitude}, ${longitude})`);
 
-    // 2. 使用 Forecast API
+    // 2. 使用 Forecast API 獲取天氣資訊
     const params = [
       `latitude=${latitude}`,
       `longitude=${longitude}`,
@@ -83,16 +100,9 @@ async function fetchWeather(city, daysInput = 1) {
     ].join('&');
 
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?${params}`;
-    console.error(`[Weather Tool] 請求 Forecast: ${weatherUrl}`);
-
-    const weatherRes = await fetchWithRetry(weatherUrl);
-    if (!weatherRes.ok) {
-      const errorText = await weatherRes.text();
-      console.error(`[Weather Tool] Forecast 失敗: ${weatherRes.status}, ${errorText}`);
-      throw new Error(`Forecast API 請求失敗: ${weatherRes.status}`);
-    }
-    const weatherData = await weatherRes.json();
+    const weatherData = await fetchWithRetry(weatherUrl);
     console.error('[Weather Tool] 天氣數據獲取成功');
+
     if (!weatherData.current || !weatherData.daily) {
       throw new Error('API 回傳數據格式不正確');
     }
