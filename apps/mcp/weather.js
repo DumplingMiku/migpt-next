@@ -8,6 +8,27 @@ const server = new Server(
 );
 
 /**
+ * 帶有重試機制的 fetch 封裝
+ */
+async function fetchWithRetry(url, options = {}, retries = 3, backoff = 1000) {
+  const timeout = options.timeout || 10000;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      return response;
+    } catch (err) {
+      const isLastRetry = i === retries - 1;
+      console.error(`[Weather Tool] 請求失敗 (第 ${i + 1} 次嘗試): ${err.message}`);
+      if (isLastRetry) throw err;
+      await new Promise((resolve) => setTimeout(resolve, backoff * (i + 1)));
+    }
+  }
+}
+
+/**
  * 獲取天氣與預報的函數 (使用 open-meteo.com)
  */
 async function fetchWeather(city, daysInput = 1) {
@@ -15,11 +36,11 @@ async function fetchWeather(city, daysInput = 1) {
   try {
     console.error(`[Weather Tool] 開始查詢: ${city}, 天數: ${days}`);
 
-    // 1. 使用 Geocoding API 將城市名稱轉換為經緯度
+    // 1. 使用 Geocoding API
     const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh`;
     console.error(`[Weather Tool] 請求 Geocoding: ${geoUrl}`);
 
-    const geoRes = await fetch(geoUrl);
+    const geoRes = await fetchWithRetry(geoUrl);
     if (!geoRes.ok) {
       const errorText = await geoRes.text();
       console.error(`[Weather Tool] Geocoding 失敗: ${geoRes.status}, ${errorText}`);
@@ -36,7 +57,7 @@ async function fetchWeather(city, daysInput = 1) {
     const locationName = `${name}${admin1 ? `, ${admin1}` : ''}${country ? ` (${country})` : ''}`;
     console.error(`[Weather Tool] 解析到位置: ${locationName} (${latitude}, ${longitude})`);
 
-    // 2. 使用 Forecast API 獲取天氣資訊
+    // 2. 使用 Forecast API
     const params = [
       `latitude=${latitude}`,
       `longitude=${longitude}`,
@@ -49,7 +70,7 @@ async function fetchWeather(city, daysInput = 1) {
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?${params}`;
     console.error(`[Weather Tool] 請求 Forecast: ${weatherUrl}`);
 
-    const weatherRes = await fetch(weatherUrl);
+    const weatherRes = await fetchWithRetry(weatherUrl);
     if (!weatherRes.ok) {
       const errorText = await weatherRes.text();
       console.error(`[Weather Tool] Forecast 失敗: ${weatherRes.status}, ${errorText}`);
@@ -57,7 +78,6 @@ async function fetchWeather(city, daysInput = 1) {
     }
     const weatherData = await weatherRes.json();
     console.error('[Weather Tool] 天氣數據獲取成功');
-
     if (!weatherData.current || !weatherData.daily) {
       throw new Error('API 回傳數據格式不正確');
     }
