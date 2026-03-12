@@ -4,10 +4,10 @@ import { type EngineConfig, MiGPTEngine } from '@mi-gpt/engine/index';
 import { OpenAI } from '@mi-gpt/openai';
 import { deepMerge, sleep } from '@mi-gpt/utils';
 import type { DeepPartial, Prettify } from '@mi-gpt/utils/typing';
+import { MCPManager } from './mcp.js';
 import { MiMessage } from './message.js';
 import { MiService, type MiServiceConfig } from './service.js';
 import { MiSpeaker } from './speaker.js';
-import { MCPManager } from './mcp.js';
 
 export interface MCPServerConfig {
   name: string;
@@ -98,6 +98,14 @@ class MiJiaEngine extends MiGPTEngine {
       });
 
       if (!toolCalls?.length) {
+        if (text) {
+          ChatBot.addMessage({
+            id: `${msg.id}_reply`,
+            text,
+            sender: 'assistant',
+            timestamp: Date.now(),
+          });
+        }
         return { text };
       }
 

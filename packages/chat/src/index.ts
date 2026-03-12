@@ -38,7 +38,7 @@ export class _ChatBot {
     });
 
     if (text) {
-      this._addMessage({
+      this.addMessage({
         id: randomUUID(),
         text: text,
         timestamp: Date.now(),
@@ -74,7 +74,7 @@ export class _ChatBot {
     }).then(({ text }) => {
       if (text) {
         stream.flush();
-        this._addMessage({
+        this.addMessage({
           id: randomUUID(),
           text: text,
           timestamp: Date.now(),
@@ -89,7 +89,7 @@ export class _ChatBot {
   }
 
   private _getMessages(msg: IMessage) {
-    const { context } = this._addMessage(msg);
+    const { context } = this.addMessage(msg);
 
     const messages: any[] = this.history.map((m) => ({
       role: m.sender,
@@ -106,7 +106,7 @@ export class _ChatBot {
     return messages;
   }
 
-  private _addMessage(msg: IMessage) {
+  addMessage(msg: IMessage) {
     const context = {
       msg: msg.text,
       time: toUTC8Time(new Date(msg.timestamp)),
